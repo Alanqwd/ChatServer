@@ -60,7 +60,7 @@ namespace ChatServer
 
             try
             {
-  
+
                 int byteCount = await stream.ReadAsync(buffer, 0, buffer.Length);
                 if (byteCount > 0)
                 {
@@ -70,32 +70,55 @@ namespace ChatServer
 
                 clients.TryAdd(client, clientEndPoint);
                 AppendChat($"Подключился: {clientName}");
+                string oldName = clientName;
 
+                
                 while (true)
                 {
                     byteCount = await stream.ReadAsync(buffer, 0, buffer.Length);
                     if (byteCount == 0) break;
-
                     string message = Encoding.UTF8.GetString(buffer, 0, byteCount);
-                    AppendChat($"От {clientName}: {message}");
 
-                    foreach (var kvp in clients)
+              
+                    if (message.StartsWith("/login "))
                     {
-                        if (kvp.Key != client)
+                        string newLogin = message.Substring("/login ".Length).Trim();
+                        if (!string.IsNullOrEmpty(newLogin))
                         {
-                            try
+                            
+                            clients[client] = newLogin;  
+                            clientName = newLogin;  
+
+                            AppendChat($"Пользователь {oldName} сменил логин на: {newLogin}"); 
+                            continue; 
+                        }
+                        else
+                        {
+                            AppendChat($"Ошибка: Пустой логин после команды /login от {clientEndPoint}");
+                        }
+
+                    }
+                    else 
+                    {
+                        AppendChat($"От {clientName}: {message}");
+
+                        foreach (var kvp in clients)
+                        {
+                            if (kvp.Key != client)
                             {
-                                var sendStream = kvp.Key.GetStream();
-                                string outMsg = $"От {clientName}: {message}";
-                                byte[] msgBytes = Encoding.UTF8.GetBytes(outMsg);
-                                await sendStream.WriteAsync(msgBytes, 0, msgBytes.Length);
+                                try
+                                {
+                                    var sendStream = kvp.Key.GetStream();
+                                    string outMsg = $"От {clients[client]}: {message}"; 
+                                    byte[] msgBytes = Encoding.UTF8.GetBytes(outMsg);
+                                    await sendStream.WriteAsync(msgBytes, 0, msgBytes.Length);
+                                }
+                                catch { }
                             }
-                            catch { }
                         }
                     }
                 }
             }
-            catch { }
             finally
             {
                 clients.TryRemove(client, out _);
